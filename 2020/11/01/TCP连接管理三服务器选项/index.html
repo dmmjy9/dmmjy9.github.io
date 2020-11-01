@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport">
+  <meta name="description" content="MUMU&#39;s TechSite">
+  <meta name="keyword" content="hexo-theme, vuejs">
+  
+    <link rel="shortcut icon" href="/css/images/logo.png">
+  
+  <title>
+    
+      TCP连接管理（三）：服务器选项 | MUMU&#39;s TechSite
+    
+  </title>
+  <link href="//cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <link href="//cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.css" rel="stylesheet">
+  <link href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/tomorrow.min.css" rel="stylesheet">
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+  <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/geopattern/1.2.3/js/geopattern.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.js"></script>
+  
+    
+<script src="/js/qrious.js"></script>
+
+  
+  
+  
+  
+    <!-- MathJax support START -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [ ['$','$'], ["\\(","\\)"]  ],
+          processEscapes: true,
+          skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+        }
+      });
+    </script>
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Queue(function() {
+        var all = MathJax.Hub.getAllJax(), i;
+        for (i=0; i < all.length; i += 1) {
+          all[i].SourceElement().parentNode.className += ' has-jax';
+        }
+      });
+    </script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <!-- MathJax support END -->
+  
+
+
+  
+<meta name="generator" content="Hexo 5.2.0"></head>
+<div class="wechat-share">
+  <img src="/css/images/logo.png" />
+</div>
+
+  <body>
+    <header class="header fixed-header">
+  <div class="header-container">
+    <a class="home-link" href="/">
+      <div class="logo"></div>
+      <span>MUMU's TechSite</span>
+    </a>
+    <ul class="right-list">
+      
+        <li class="list-item">
+          
+            <a href="/" class="item-link">主页</a>
+          
+        </li>
+      
+        <li class="list-item">
+          
+            <a href="/tags/" class="item-link">标签</a>
+          
+        </li>
+      
+        <li class="list-item">
+          
+            <a href="/about/" class="item-link">关于</a>
+          
+        </li>
+      
+    </ul>
+    <div class="menu">
+      <span class="icon-bar"></span>
+      <span class="icon-bar"></span>
+      <span class="icon-bar"></span>
+    </div>
+    <div class="menu-mask">
+      <ul class="menu-list">
+        
+          <li class="menu-item">
+            
+              <a href="/" class="menu-link">主页</a>
+            
+          </li>
+        
+          <li class="menu-item">
+            
+              <a href="/tags/" class="menu-link">标签</a>
+            
+          </li>
+        
+          <li class="menu-item">
+            
+              <a href="/about/" class="menu-link">关于</a>
+            
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</header>
+
+    <div id="article-banner">
+  <h2>TCP连接管理（三）：服务器选项</h2>
+  <p class="post-date">2020-11-01</p>
+  <div class="arrow-down">
+    <a href="javascript:;"></a>
+  </div>
+</div>
+<main class="app-body flex-box">
+  <!-- Article START -->
+  <article class="post-article">
+    <section class="markdown-content"><p>由于大部分TCP服务器是并发的，当多个连接请求到达时，服务器调用新的线程或进程处理。本文描述TCP如何使用端口号及处理多个并发的客户端。</p>
+<h1 id="一、端口号"><a href="#一、端口号" class="headerlink" title="一、端口号"></a>一、端口号</h1><p>我们的实验环境为使用macOS系统的ssh命令连接一台Ubuntu系统的22端口（sshd应用），并观察其端口号的使用情况。sshd应用程序执行安全外壳协议（RFC4254），该协议提供可加密认证的远程终端功能。下图为在已启动openssh-server服务的终端上查看端口监听情况：</p>
+<p><img src="https://img.dmmjy9.top/tcp/3/1.png" alt="alt tcp1"></p>
+<p>该终端安装ssh服务并启用ipv4/ipv6双栈协议，netstat -ant命令用于显示所有状态的TCP连接。返回结果表明该主机监听了ipv4和ipv6双协议的22端口，ipv4的本地地址为0.0.0.0，ipv6本地地址为:::22，这种地址表示方法也称为“通配符地址”，这意味着一个针对22端口的连接进入请求（SYN）会被任何本地接口接受。</p>
+<p>现我们从另一台主机上开启一个针对22端口的连接，并查看22端口的连接情况，返回结果如下：</p>
+<p><img src="https://img.dmmjy9.top/tcp/3/2.png" alt="alt tcp2"></p>
+<p>端口号为22的最后一行为一个ESTABLISHED状态的连接，该行显示了与本地节点连接相关的四元组，其中包括本地IP地址与端口号、外部IP地址与端口号，本地IP地址与连接请求到达的接口相关。处于LISTEN状态的本地节点会继续独自运行，并为新传入的连接创建新的连接节点。现在我们用同一个系统向服务器发起ssh连接，并使用netstat -ant命令查看连接：</p>
+<p><img src="https://img.dmmjy9.top/tcp/3/3.png" alt="alt tcp3"></p>
+<p>现在我们获得了两个从同一个客户端发起的处于ESTABLISHED状态的连接，两条连接的目的端口号均为22，因此源主机的端口号必须不同。大部分TCP应用程序使用随机本地端口与服务器建立连接，且这个端口必须是未被其它连接使用的端口（包括处于FINWAIT、TIMEWAIT状态的连接）。</p>
+<p>这个例子说明TCP依靠四元组多路分解（demultiplex）获得的报文段，不能仅仅根据目的端口号来决定哪个进程该得到接收的报文段。在所有节点中只有处于LISTEN状态的节点能接收SYN报文并建立新连接。</p>
+<p>下面我们从另一个系统向该服务器发起连接，端口连接情况如下：</p>
+<p><img src="https://img.dmmjy9.top/tcp/3/4.jpg" alt="alt tcp4"></p>
+<p>在这台多宿主的主机上，第三条TCP连接的IP地址与本地IPv4接口地址（192.168.199.201）相关联，建立了另一个不同四元组的ESTABLISHED状态连接。</p>
+<h1 id="二、本地限制"><a href="#二、本地限制" class="headerlink" title="二、本地限制"></a>二、本地限制</h1><p>通过修改sshd配置文件，我们可以将该服务与本地某个特定IP地址绑定，外部主机到达22端口的请求必须发送到该地址才能得到响应，服务器监听端口如下：</p>
+<p><img src="https://img.dmmjy9.top/tcp/3/5.png" alt="alt tcp5"></p>
+<p>如果我们从一台目的地址不是192.168.199.201（甚至包括本地地址127.0.0.1）的主机连接服务器，连接请求将不会被TCP模块处理。通过查看tcpdump可以看出SYN会引发一个RST报文：</p>
+<p><img src="https://img.dmmjy9.top/tcp/3/6.png" alt="alt tcp6"></p>
+<p>服务器的应用程序不会察觉到连接请求，因为拒绝接收的操作是由操作系统的TCP模块根据应用程序的配置发出的，系统限制本地IP的能力是非常严格的。</p>
+<h1 id="三、外部节点限制"><a href="#三、外部节点限制" class="headerlink" title="三、外部节点限制"></a>三、外部节点限制</h1><p>RFC0793中介绍的TCP抽象接口函数允许一台服务器为一个完全指定的外部节点或一个未被指定的外部节点执行被动打开，但通用的TCP模块实现方式中并没有支持这一方法。服务器无法指定外部节点，只能等待客户端的到来，然后检查该客户端的IP地址和端口号。</p>
+<p>在服务器允许的地址绑定中，最常见的是绑定本地所有地址的特定端口号与外部所有地址和端口号，或绑定本地地址（如127.0.0.1）的指定端口号（不常见，常用语DNS服务器），而绑定外部特定地址的特定端口号通常是不支持的。当收到连接请求时，TCP模块优先匹配最严格的地址绑定方式，最后匹配所有本地地址与所有外部地址（*.local_port - &gt; *.*）的绑定方式。</p>
+<h1 id="四、连接队列"><a href="#四、连接队列" class="headerlink" title="四、连接队列"></a>四、连接队列</h1><p>一个并行的服务器可以为每个到达的客户端分配进程或线程，这样负责侦听的服务器能够始终准备处理下一个到达的连接请求。然而，当连接到达时服务器正在创建一个新进程，或在运行其他优先级更高的进程时，多个请求可能会同时到达，此时操作系统将进行如下处理：</p>
+<ol>
+<li>当一个连接请求到达，TCP将会检查系统变量net.ipv4.tcp_max_syn_backlog（默认为1000），如果处于SYN_RCVD状态的连接数超过该值，新连接将会被拒绝。</li>
+<li>每个服务器都存在一个固定长度的队列（Queue），该队列保存已经进入ESTABLISHED状态但还未被应用程序使用的连接，这通常称为未完成连接（backlog）。backlog的值必须处于0和系统变量net.core.somaxconn之间，默认值为128。</li>
+<li>如果队列中仍有空间分配给新的连接，TCP会应答SYN并完成连接。当客户端完成连接开始传送数据时，服务器上的连接可能还未被应用程序使用，此时TCP会将从该连接发来的数据存入队列中。</li>
+<li>如果队列已满，TCP将延迟应答SYN请求，且系统会尽量不忽略收到的每个连接请求，只要客户端持续等待，将会得到服务器分配的连接资源。可将系统变量net.ipv4.tcp_abort_on_设为1，新进入的连接将会被RST报文重置。</li>
+</ol>
+<p>当连接队列溢出时发送重置报文段是不可取的，因为连接队列满的服务器通常处于正常的繁忙状态，在有空闲资源时仍然可以继续建立连接，若服务器发送了RST报文，客户端会认为该服务器已经出现问题中断服务，之后放弃主动打开操作，停止向该服务器发起连接。最合理的方法是暂时延迟对溢出队列连接的应答，同时也不主动重置这个连接，客户端的现象为等待一段时间后获得这个连接。</p>
+</section>
+    <!-- Tags START -->
+    
+      <div class="tags">
+        <span>标签:</span>
+        
+  <a href="/tags#网络" >
+    <span class="tag-code">网络</span>
+  </a>
+
+  <a href="/tags#TCP/IP" >
+    <span class="tag-code">TCP/IP</span>
+  </a>
+
+      </div>
+    
+    <!-- Tags END -->
+    <!-- NAV START -->
+    
+  <div class="nav-container">
+    <!-- reverse left and right to put prev and next in a more logic postition -->
+    
+      <a class="nav-left" href="/2020/10/13/TCP%E8%BF%9E%E6%8E%A5%E7%AE%A1%E7%90%86%E4%BA%8C%E7%8A%B6%E6%80%81%E8%BF%81%E7%A7%BB/">
+        <span class="nav-arrow">← </span>
+        
+          TCP连接管理（二）：状态迁移
+        
+      </a>
+    
+    
+  </div>
+
+    <!-- NAV END -->
+    <!-- 打赏 START -->
+    
+      <div class="money-like">
+        <div class="reward-btn">
+          赏
+          <span class="money-code">
+            <span class="alipay-code">
+              <div class="code-image"></div>
+              <b>使用支付宝打赏</b>
+            </span>
+            <span class="wechat-code">
+              <div class="code-image"></div>
+              <b>使用微信打赏</b>
+            </span>
+          </span>
+        </div>
+        <p class="notice">若你觉得我的文章对你有帮助，欢迎点击上方按钮对我打赏</p>
+      </div>
+    
+    <!-- 打赏 END -->
+    <!-- 二维码 START -->
+    
+      <div class="qrcode">
+        <canvas id="share-qrcode"></canvas>
+        <p class="notice">扫描二维码，分享此文章</p>
+      </div>
+    
+    <!-- 二维码 END -->
+    
+      <!-- No Comment -->
+    
+  </article>
+  <!-- Article END -->
+  <!-- Catalog START -->
+  
+    <aside class="catalog-container">
+  <div class="toc-main">
+    <strong class="toc-title">Catalog</strong>
+    
+      <ol class="toc-nav"><li class="toc-nav-item toc-nav-level-1"><a class="toc-nav-link" href="#%E4%B8%80%E3%80%81%E7%AB%AF%E5%8F%A3%E5%8F%B7"><span class="toc-nav-text">一、端口号</span></a></li><li class="toc-nav-item toc-nav-level-1"><a class="toc-nav-link" href="#%E4%BA%8C%E3%80%81%E6%9C%AC%E5%9C%B0%E9%99%90%E5%88%B6"><span class="toc-nav-text">二、本地限制</span></a></li><li class="toc-nav-item toc-nav-level-1"><a class="toc-nav-link" href="#%E4%B8%89%E3%80%81%E5%A4%96%E9%83%A8%E8%8A%82%E7%82%B9%E9%99%90%E5%88%B6"><span class="toc-nav-text">三、外部节点限制</span></a></li><li class="toc-nav-item toc-nav-level-1"><a class="toc-nav-link" href="#%E5%9B%9B%E3%80%81%E8%BF%9E%E6%8E%A5%E9%98%9F%E5%88%97"><span class="toc-nav-text">四、连接队列</span></a></li></ol>
+    
+  </div>
+</aside>
+  
+  <!-- Catalog END -->
+</main>
+
+<script>
+  (function () {
+    var url = 'https://dmmjy9.com/2020/11/01/TCP连接管理三服务器选项/';
+    var banner = ''
+    if (banner !== '' && banner !== 'undefined' && banner !== 'null') {
+      $('#article-banner').css({
+        'background-image': 'url(' + banner + ')'
+      })
+    } else {
+      $('#article-banner').geopattern(url)
+    }
+    $('.header').removeClass('fixed-header')
+
+    // error image
+    $(".markdown-content img").on('error', function() {
+      $(this).attr('src', 'http://file.muyutech.com/error-img.png')
+      $(this).css({
+        'cursor': 'default'
+      })
+    })
+
+    // zoom image
+    $(".markdown-content img").on('click', function() {
+      var src = $(this).attr('src')
+      if (src !== 'http://file.muyutech.com/error-img.png') {
+        var imageW = $(this).width()
+        var imageH = $(this).height()
+
+        var zoom = ($(window).width() * 0.95 / imageW).toFixed(2)
+        zoom = zoom < 1 ? 1 : zoom
+        zoom = zoom > 2 ? 2 : zoom
+        var transY = (($(window).height() - imageH) / 2).toFixed(2)
+
+        $('body').append('<div class="image-view-wrap"><div class="image-view-inner"><img src="'+ src +'" /></div></div>')
+        $('.image-view-wrap').addClass('wrap-active')
+        $('.image-view-wrap img').css({
+          'width': `${imageW}`,
+          'transform': `translate3d(0, ${transY}px, 0) scale3d(${zoom}, ${zoom}, 1)`
+        })
+        $('html').css('overflow', 'hidden')
+
+        $('.image-view-wrap').on('click', function() {
+          $(this).remove()
+          $('html').attr('style', '')
+        })
+      }
+    })
+  })();
+</script>
+
+
+  <script>
+    var qr = new QRious({
+      element: document.getElementById('share-qrcode'),
+      value: document.location.href
+    });
+  </script>
+
+
+
+
+
+
+    <div class="scroll-top">
+  <span class="arrow-icon"></span>
+</div>
+    <footer class="app-footer">
+  <p class="copyright">
+    &copy; 2020 | Proudly powered by <a href="https://hexo.io" target="_blank">Hexo</a>
+    <br>
+    <a href="https://beian.miit.gov.cn" target="_blank">京ICP备17000046号</a>
+  </p>
+</footer>
+
+<script>
+  function async(u, c) {
+    var d = document, t = 'script',
+      o = d.createElement(t),
+      s = d.getElementsByTagName(t)[0];
+    o.src = u;
+    if (c) { o.addEventListener('load', function (e) { c(null, e); }, false); }
+    s.parentNode.insertBefore(o, s);
+  }
+</script>
+<script>
+  async("//cdnjs.cloudflare.com/ajax/libs/fastclick/1.0.6/fastclick.min.js", function(){
+    FastClick.attach(document.body);
+  })
+</script>
+
+<script>
+  var hasLine = 'true';
+  async("//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js", function(){
+    $('figure pre').each(function(i, block) {
+      var figure = $(this).parents('figure');
+      if (hasLine === 'false') {
+        figure.find('.gutter').hide();
+      }
+      var lang = figure.attr('class').split(' ')[1] || 'code';
+      var codeHtml = $(this).html();
+      var codeTag = document.createElement('code');
+      codeTag.className = lang;
+      codeTag.innerHTML = codeHtml;
+      $(this).attr('class', '').empty().html(codeTag);
+      figure.attr('data-lang', lang.toUpperCase());
+      hljs.highlightBlock(block);
+    });
+  })
+</script>
+<!-- Baidu Tongji -->
+
+
+<script src="/js/script.js"></script>
+
+
+  </body>
+</html>
